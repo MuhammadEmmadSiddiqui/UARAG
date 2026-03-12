@@ -1,0 +1,3 @@
+# Run FastAPI Backend
+Write-Host "Starting FastAPI Backend..." -ForegroundColor Green
+uv run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
