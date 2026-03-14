@@ -37,8 +37,8 @@ def register_user(username: str, email: str, password: str) -> tuple[bool, str]:
         if response.status_code == 201:
             return True, "Registration successful! Please login."
         else:
-            error_detail = response.json().get("detail", "Registration failed")
-            return False, error_detail
+            error_detail_message = response.json().get("detail", "Registration failed")
+            return False, error_detail_message
     except Exception as e:
         return False, f"Error: {str(e)}"
 
@@ -55,8 +55,8 @@ def login_user(username: str, password: str) -> tuple[bool, str]:
             timeout=30.0
         )
         if response.status_code == 200:
-            data = response.json()
-            st.session_state.access_token = data["access_token"]
+            token_response_data = response.json()
+            st.session_state.access_token = token_response_data["access_token"]
             st.session_state.username = username
             return True, "Login successful!"
         else:
@@ -83,7 +83,7 @@ def stream_chat(message: str) -> Optional[str]:
         "Content-Type": "application/json"
     }
     
-    payload = {
+    request_payload = {
         "message": message,
         "conversation_id": st.session_state.conversation_id
     }
@@ -92,7 +92,7 @@ def stream_chat(message: str) -> Optional[str]:
         with httpx.stream(
             "POST",
             f"{API_BASE_URL}/chat/stream",
-            json=payload,
+            json=request_payload,
             headers=headers,
             timeout=60.0
         ) as response:
@@ -127,9 +127,9 @@ def show_login_page():
     st.title("🤖 UARAG - Uncertainty Aware RAG")
     st.markdown("---")
     
-    tab1, tab2 = st.tabs(["Login", "Register"])
+    login_tab, register_tab = st.tabs(["Login", "Register"])
     
-    with tab1:
+    with login_tab:
         st.subheader("Login")
         with st.form("login_form"):
             username = st.text_input("Username")
@@ -147,7 +147,7 @@ def show_login_page():
                 else:
                     st.error("Please fill in all fields")
     
-    with tab2:
+    with register_tab:
         st.subheader("Register")
         with st.form("register_form"):
             reg_username = st.text_input("Username", key="reg_username")
@@ -175,10 +175,10 @@ def show_login_page():
 def show_chat_page():
     """Show chat interface."""
     # Header with logout button
-    col1, col2 = st.columns([3, 1])
-    with col1:
+    title_column, action_column = st.columns([3, 1])
+    with title_column:
         st.title("🤖 UARAG")
-    with col2:
+    with action_column:
         if st.button("Logout", type="secondary"):
             logout()
             st.rerun()
@@ -200,19 +200,19 @@ def show_chat_page():
         
         # Get assistant response with streaming
         with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            full_response = ""
+            streaming_message_placeholder = st.empty()
+            accumulated_response = ""
             
             for chunk in stream_chat(prompt):
                 if chunk:
-                    full_response += chunk
-                    message_placeholder.markdown(full_response + "▌")
+                    accumulated_response += chunk
+                    streaming_message_placeholder.markdown(accumulated_response + "▌")
             
-            message_placeholder.markdown(full_response)
+            streaming_message_placeholder.markdown(accumulated_response)
         
         # Add assistant message
-        if full_response:
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
+        if accumulated_response:
+            st.session_state.messages.append({"role": "assistant", "content": accumulated_response})
     
     # Sidebar with conversation options
     with st.sidebar:

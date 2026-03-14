@@ -15,7 +15,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next: Callable):
         """Process request and log details."""
-        start_time = time.time()
+        request_start_time = time.time()
         
         # Log request
         logger.info(f"Request: {request.method} {request.url.path}")
@@ -24,13 +24,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             
             # Calculate processing time
-            process_time = time.time() - start_time
-            response.headers["X-Process-Time"] = str(process_time)
+            request_processing_time = time.time() - request_start_time
+            response.headers["X-Process-Time"] = str(request_processing_time)
             
             # Log response
             logger.info(
                 f"Response: {request.method} {request.url.path} "
-                f"Status: {response.status_code} Time: {process_time:.4f}s"
+                f"Status: {response.status_code} Time: {request_processing_time:.4f}s"
             )
             
             return response
@@ -54,12 +54,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         """Check rate limits and process request."""
         client_ip = request.client.host
-        current_time = time.time()
+        current_timestamp = time.time()
         
         # Clean old entries
         self.clients = {
-            ip: times for ip, times in self.clients.items()
-            if any(t > current_time - self.period for t in times)
+            client_address: request_timestamps for client_address, request_timestamps in self.clients.items()
+            if any(timestamp > current_timestamp - self.period for timestamp in request_timestamps)
         }
         
         # Get client's request times
@@ -68,8 +68,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Filter times within period
         self.clients[client_ip] = [
-            t for t in self.clients[client_ip]
-            if t > current_time - self.period
+            timestamp for timestamp in self.clients[client_ip]
+            if timestamp > current_timestamp - self.period
         ]
         
         # Check rate limit
@@ -80,7 +80,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
         
         # Add current request time
-        self.clients[client_ip].append(current_time)
+        self.clients[client_ip].append(current_timestamp)
         
         return await call_next(request)
 
