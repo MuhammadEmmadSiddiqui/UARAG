@@ -105,45 +105,45 @@ async def stream_chat_response(
     """Stream chat response from LLM."""
     try:
         # Get conversation history
-        history = await get_conversation_history(db, conversation_id)
+        conversation_history = await get_conversation_history(db, conversation_id)
         
         # Create prompt
-        prompt = ChatPromptTemplate.from_messages([
+        chat_prompt_template = ChatPromptTemplate.from_messages([
             ("system", "You are a helpful AI assistant. Provide clear, concise, and helpful responses."),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}")
         ])
         
         # Get LLM
-        llm = get_llm()
-        chain = prompt | llm
+        language_model = get_llm()
+        llm_chain = chat_prompt_template | language_model
         
         # Save user message
         await save_message(db, conversation_id, "user", message)
         
         # Stream response
-        full_response = ""
-        async for chunk in chain.astream({
-            "history": history,
+        accumulated_response = ""
+        async for chunk in llm_chain.astream({
+            "history": conversation_history,
             "input": message
         }):
             if hasattr(chunk, 'content'):
-                content = chunk.content
-                if content:
-                    full_response += content
+                chunk_content = chunk.content
+                if chunk_content:
+                    accumulated_response += chunk_content
                     # Send as JSON with conversation_id
                     yield json.dumps({
-                        "content": content,
+                        "content": chunk_content,
                         "conversation_id": conversation_id
                     }) + "\n"
         
         # Save assistant message
-        await save_message(db, conversation_id, "assistant", full_response)
+        await save_message(db, conversation_id, "assistant", accumulated_response)
         
     except Exception as e:
-        error_msg = f"Error: {str(e)}"
+        error_message = f"Error: {str(e)}"
         yield json.dumps({
-            "error": error_msg,
+            "error": error_message,
             "conversation_id": conversation_id
         }) + "\n"
 
@@ -180,29 +180,29 @@ async def get_chat_history(
     conversations = result.scalars().all()
     
     # Load messages for each conversation
-    response = []
-    for conv in conversations:
+    conversation_list = []
+    for conversation in conversations:
         result = await db.execute(
             select(Message)
-            .where(Message.conversation_id == conv.id)
+            .where(Message.conversation_id == conversation.id)
             .order_by(Message.created_at)
         )
         messages = result.scalars().all()
         
-        response.append(ConversationResponse(
-            id=conv.id,
-            created_at=conv.created_at,
+        conversation_list.append(ConversationResponse(
+            id=conversation.id,
+            created_at=conversation.created_at,
             messages=[
                 ChatMessage(
-                    role=msg.role,
-                    content=msg.content,
-                    created_at=msg.created_at
+                    role=message.role,
+                    content=message.content,
+                    created_at=message.created_at
                 )
-                for msg in messages
+                for message in messages
             ]
         ))
     
-    return response
+    return conversation_list
 
 
 @router.get("/conversation/{conversation_id}", response_model=ConversationResponse)
@@ -239,10 +239,10 @@ async def get_conversation(
         created_at=conversation.created_at,
         messages=[
             ChatMessage(
-                role=msg.role,
-                content=msg.content,
-                created_at=msg.created_at
+                role=message.role,
+                content=message.content,
+                created_at=message.created_at
             )
-            for msg in messages
+            for message in messages
         ]
     )

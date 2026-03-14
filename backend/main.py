@@ -90,8 +90,8 @@ async def register(
         )
     
     # Check if email exists
-    existing_email = await get_user_by_email(db, user_data.email)
-    if existing_email:
+    existing_email_user = await get_user_by_email(db, user_data.email)
+    if existing_email_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -126,10 +126,10 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token_expiry_delta = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": user.username},
-        expires_delta=access_token_expires
+        expires_delta=access_token_expiry_delta
     )
     
     logger.info(f"User logged in: {user.username}")
